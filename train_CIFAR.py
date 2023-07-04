@@ -33,7 +33,7 @@ def train(diffusion_model, train_dataset, val_dataset, test_dataset, model_path,
     # # pre-compute for fp embeddings on training data
     print('pre-computing fp embeddings for training data')
     train_embed = prepare_fp_x(diffusion_model.fp_encoder, train_dataset, save_dir=None, device=device,
-                               fp_dim=fp_dim).to(device)
+                               fp_dim=fp_dim).to(device) # generate embeddings using pretrained simclr encoder for all samples in the dataset
 
     train_loader = data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4)
     val_loader = data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
@@ -61,7 +61,9 @@ def train(diffusion_model, train_dataset, val_dataset, test_dataset, model_path,
                     # use pre-compute embedding for efficiency
                     fp_embd = train_embed[data_indices, :]
 
-                # sample a knn labels and compute weight for the sample
+                # sample knn labels and compute weight for the sample
+                # high weight means that the sampled label has occured more frequently in the neighbourhood of the datapoint
+                # intuition: more weight means more likely to be correct
                 y_labels_batch, sample_weight = sample_knn_labels(fp_embd, y_batch.to(device), train_embed,
                                                                   torch.tensor(train_dataset.targets).to(device),
                                                                   k=k, n_class=n_class, weighted=True)
@@ -69,6 +71,7 @@ def train(diffusion_model, train_dataset, val_dataset, test_dataset, model_path,
                 # convert label to one-hot vector
                 y_one_hot_batch, y_logits_batch = cast_label_to_one_hot_and_prototype(y_labels_batch.to(torch.int64),
                                                                                       n_class=n_class)
+                #y_logits_batch returns the logits of the one hot labels (kind of like soft pre-softmax values computed)
                 y_0_batch = y_one_hot_batch.to(device)
 
                 # adjust_learning_rate
@@ -84,7 +87,8 @@ def train(diffusion_model, train_dataset, val_dataset, test_dataset, model_path,
 
                 # compute loss
                 mse_loss = diffusion_loss(e, output)
-                weighted_mse_loss = torch.matmul(sample_weight, mse_loss)
+                weighted_mse_loss = torch.matmul(sample_weight, mse_loss) # sample weight: high means more weightage given to loss
+                # because it is more likely to be correct, so giving more weight should improve learning
                 loss = torch.mean(weighted_mse_loss)
                 pbar.set_postfix({'loss': loss.item()})
                 optimizer.zero_grad()
@@ -93,7 +97,8 @@ def train(diffusion_model, train_dataset, val_dataset, test_dataset, model_path,
                 optimizer.step()
                 ema_helper.update(diffusion_model.model)
 
-        if epoch % 5 == 0 and epoch >= warmup_epochs:
+        # if epoch % 1 == 0 and epoch >= warmup_epochs:
+        if True:
             val_acc = test(diffusion_model, val_loader)
             print(f"epoch: {epoch}, validation accuracy: {val_acc:.2f}%")
             if val_acc > max_accuracy:
@@ -120,7 +125,8 @@ def test(diffusion_model, test_loader):
             target = target.to(device)
 
             label_t_0 = diffusion_model.reverse_ddim(images, stochastic=False, fq_x=None).detach().cpu()
-            correct = cnt_agree(label_t_0.detach().cpu(), target.cpu())[0].item()
+            print(cnt_agree(label_t_0.detach().cpu(), target.cpu()))
+            correct = cnt_agree(label_t_0.detach().cpu(), target.cpu())
             correct_cnt += correct
             all_cnt += images.shape[0]
 
@@ -136,6 +142,7 @@ if __name__ == "__main__":
     parser.add_argument('--noise_type', default='cifar10-1-0.35', help='noise label file', type=str)
     parser.add_argument("--nepoch", default=200, help="number of training epochs", type=int)
     parser.add_argument("--batch_size", default=200, help="batch_size", type=int)
+    parser.add_argument("--data_dir", default='../../scratch/data', help="dataset download dir", type=str)
     parser.add_argument("--device", default='cpu', help="which GPU to use", type=str)
     parser.add_argument("--num_workers", default=4, help="num_workers", type=int)
     parser.add_argument("--warmup_epochs", default=5, help="warmup_epochs", type=int)
@@ -156,13 +163,13 @@ if __name__ == "__main__":
     # load datasets
     if dataset == 'cifar10':
         n_class = 10
-        train_dataset_cifar = torchvision.datasets.CIFAR10(root='./', train=True, download=True)
-        test_dataset_cifar = torchvision.datasets.CIFAR10(root='./', train=False, download=True)
+        train_dataset_cifar = torchvision.datasets.CIFAR10(root=args.data_dir, train=True, download=True)
+        test_dataset_cifar = torchvision.datasets.CIFAR10(root=args.data_dir, train=False, download=True)
 
     elif dataset == 'cifar100':
         n_class = 100
-        train_dataset_cifar = torchvision.datasets.CIFAR100(root='./', train=True, download=True)
-        test_dataset_cifar = torchvision.datasets.CIFAR100(root='./', train=False, download=True)
+        train_dataset_cifar = torchvision.datasets.CIFAR100(root=args.data_dir, train=True, download=True)
+        test_dataset_cifar = torchvision.datasets.CIFAR100(root=args.data_dir, train=False, download=True)
     else:
         raise Exception("Date should be cifar10 or cifar100")
 

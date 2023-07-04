@@ -47,12 +47,12 @@ class ConditionalModel(nn.Module):
         x_embed = self.norm(x_embed)
 
         if self.guidance:
-            y = torch.cat([y, fp_x], dim=-1)
+            y = torch.cat([y, fp_x], dim=-1) # incorporating conditional information from image, dimensions 200x2058
 
         y = self.lin1(y, t)
         y = self.unetnorm1(y)
         y = F.softplus(y)
-        y = x_embed * y
+        y = x_embed * y # incorporating conditional information, need to look closely
         y = self.lin2(y, t)
         y = self.unetnorm2(y)
         y = F.softplus(y)
@@ -147,9 +147,10 @@ class Diffusion(nn.Module):
 
         x_batch = x_batch.to(self.device)
 
-        e = torch.randn_like(y_0_batch).to(y_0_batch.device)
+        e = torch.randn_like(y_0_batch).to(y_0_batch.device) # randomly samples e
         y_t_batch = q_sample(y_0_batch, self.alphas_bar_sqrt,
                              self.one_minus_alphas_bar_sqrt, t, noise=e, fq_x=fq_x)
+        # y_t_batch contains the labels that have been noised by the forward process
 
         x_embed_batch = self.diffusion_encoder(x_batch)
         output = self.model(x_embed_batch, y_t_batch, t, fp_x)

@@ -53,7 +53,7 @@ if __name__ == "__main__":
     parser.add_argument("--k", default=50, help="k neighbors for knn", type=int)
     parser.add_argument("--ddim_n_step", default=10, help="number of steps in ddim", type=int)
     parser.add_argument("--diff_encoder", default='resnet50_l', help="which encoder for diffusion", type=str)
-    parser.add_argument("--gpu_devices", default=[0, 1, 2, 3], type=int, nargs='+', help="")
+    parser.add_argument("--gpu_devices", default=[0, 1], type=int, nargs='+', help="")
     parser.add_argument("--device", default=None, help="which cuda to use", type=str)
     args = parser.parse_args()
 

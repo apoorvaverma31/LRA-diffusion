@@ -36,7 +36,7 @@ def extract(input, t, x):
     return out.reshape(*reshape)
 
 
-# Forward functions
+# Forward functions i.e. from y_0 to y_T
 def q_sample(y, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, t, noise=None, fq_x=None):
 
     if noise is None:
@@ -45,7 +45,7 @@ def q_sample(y, alphas_bar_sqrt, one_minus_alphas_bar_sqrt, t, noise=None, fq_x=
     sqrt_one_minus_alpha_bar_t = extract(one_minus_alphas_bar_sqrt, t, y)
     # q(y_t | y_0, x)
     if fq_x is None:
-        y_t = sqrt_alpha_bar_t * y + sqrt_one_minus_alpha_bar_t * noise
+        y_t = sqrt_alpha_bar_t * y + sqrt_one_minus_alpha_bar_t * noise 
     else:
         y_t = sqrt_alpha_bar_t * y + (1 - sqrt_alpha_bar_t) * fq_x + sqrt_one_minus_alpha_bar_t * noise
     return y_t
